@@ -1,0 +1,6 @@
+@CQRS.Design.Pattern_HostAddress = http://localhost:5118
+
+GET {{CQRS.Design.Pattern_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
