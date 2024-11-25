@@ -1,46 +1,50 @@
-## CQRS (Command Query Responsibility Segregation) Desenine Kapsamlı Bir Kılavuz
+# CQRS (Command Query Responsibility Segregation) Design Pattern
 
-Bu README, CQRS desenini uygulamaya yönelik kapsamlı bir kılavuz sunar; temel kavramları, avantajlarını, uygun senaryoları, uygulama yaklaşımlarını (manuel ve MediatR kullanarak) ve en iyi uygulamaları kapsar.
+CQRS (Command Query Responsibility Segregation) deseni, bir uygulamanın Komutlar (Commands) ve Sorgular (Queries) için farklı süreçler ve modeller kullanmasını sağlayarak veri manipülasyonunu ve veri okuma işlemlerini optimize eden bir yazılım mimarisi desenidir.
 
-**1. Temel Kavramlar**
+Bu belge, CQRS'nin temel kavramlarını, faydalarını ve nasıl uygulanabileceğini açıklarken aynı zamanda örnek bir proje yapısını da içermektedir.
 
-CQRS, bir uygulama içinde okuma ve yazma işlemlerini ayıran bir desendir. Bu ayrım, ölçeklenebilirliği, sürdürülebilirliği ve performansı iyileştirir.
+## 📚 Temel Kavramlar
 
-* **Komutlar (Commands):** Uygulamanın durumunu değiştiren eylemleri temsil eder. Örnekler arasında veri oluşturma, güncelleme veya silme yer alır. Genellikle asenkron oldukları ve doğrudan veri döndürmedikleri için kullanılırlar.
+* **Komutlar (Commands):** Veritabanındaki state’in değişikliğini temsil eden davranışlardır. Kayıt ekleme, mevcut olan bir kaydı güncelleme yahut silme gibi eylemlerin hepsi komut olarak değerlendirilebilir.
 
-* **Komut İşleyicileri (Command Handlers):** Komutları işlemekten sorumludur. İstenen eylemi yürütmek ve değişiklikleri bir veri deposuna kalıcı hale getirmek için iş mantığını içerirler.
+* **Komut Modeli (Command Model):** Komutları işlemek için kullanılan modeller veya sınıflardır. Bu yapılar sayesinde veri değişiklikleri gerçekleştirilebilmektedir.
 
-* **Sorgular (Queries):** Uygulamadan veri okuma isteklerini temsil eder. Örnekler arasında tek bir varlığı alım veya bir varlık koleksiyonu için sorgulama yer alır. Genellikle senkron oldukları ve veri döndürdükleri için kullanılırlar.
+* **Sorgular (Queries):** Veri okuma işlemlerinin hepsi sorgu olarak nitelendirilebilir. Veritabanından veri almak veya belirli bir kaydı sorgulamak gibi eylemlerin tümüdür.
 
-* **Sorgu İşleyicileri (Query Handlers):** Sorguları işlemekten sorumludur. Verileri bir veri deposundan veya diğer kaynaklardan alır ve istenen bilgileri döndürür. Uygulamanın durumunu değiştirmezler.
+* **Sorgu Modeli (Query Model):** Sorguları işlemek için kullanılan model veya sınıflardır. Veri okuma işlemleri için optimize edilmiş veri yapısını temsil ederler.
+
+## 🎯 CQRS'in Amacı
+
+**1. Performans ve Ölçeklenebilirlik**
+
+CQRS, sistemdeki yoğunluğa göre farklı bölümleri bağımsız olarak ölçeklendirme imkânı sunar. 
+Örneğin:
+* E-ticaret uygulamalarında ürünler sürekli okunarak listelenir. Bu, sistemde yüksek okuma talebi oluşturur.
+* Yeni ürün ekleme ve ürün güncelleme işlemleri ise daha seyrek gerçekleşir.
+
+CQRS ile okuma işlemleri için ayrı bir veritabanı kullanılabilir ve bu veritabanı okuma işlemleri için optimize edilebilir. Benzer şekilde, yazma işlemleri başka bir veritabanında yürütülerek farklı bir şekilde ölçeklendirilebilir. Böylece her iki tür işlem için uygun çözümler sunulabilir ve maliyet düşürülür.
+
+**2. Karmaşıklığın Azaltılması**
+
+Komut ve sorguların birbirinden ayrılması, karmaşık iş süreçlerini daha yönetilebilir parçalara bölmeyi sağlar. Bu yapı, geliştiricilere iş akışlarını sadeleştirme ve daha net bir şekilde yönetme imkânı verir.
+
+**3. Esneklik**
+
+CQRS deseni, yeni gereksinimlerin eklenmesini veya mevcut gereksinimlerin değiştirilmesini kolaylaştırır. Her iki operasyon tipi (okuma ve yazma) için farklı teknolojiler veya mimariler kullanılabilir.
 
 
-**2. CQRS'nin Avantajları**
+## ⚙️ Uygun Senaryolar
 
-* **Gelişmiş Ölçeklenebilirlik:** Komutlar ve sorgular, ilgili iş yüklerine göre bağımsız olarak ölçeklendirilebilir. Okuma yoğun bir uygulama, komut tarafına göre sorgu tarafını önemli ölçüde daha fazla ölçeklendirmenin avantajlarından yararlanabilir.
+* **Yüksek Trafikli Uygulamalar:** Yüksek trafikli uygulamalarda CQRS pattern'ı optimizasyon açısından oldukça faydalı olabilir. Özellikle performans ve uygulama ölçeklenebilirliği açısından bu tarz uygulamalarda, uygun noktalarda düşünülüp, tasarlanmalıdır.
 
-* **Artan Performans:** Her işlem türü (okuma veya yazma) için optimize edilmiş veri yapıları ve erişim yöntemleri kullanılabilir. Örneğin, sorgular MongoDB veya Redis gibi okuma için optimize edilmiş bir veritabanı kullanabilirken, komutlar ilişkisel bir veritabanı kullanabilir.
+* **Karmaşık İş Mantığı:** Uygulamanın karmaşık iş mantığına sahip olduğu senaryolarda CQRS pattern'ı sayesinde komutlar ve sorgular arasında ayrım yaparak karmaşıklık azaltılabilir ve kodun daha yönetilebilir olması sağlanabilir.
 
-* **Artan Bakım Sürdürülebilirliği:** Okuma ve yazma işlemlerinin ayrılması, daha temiz ve daha sürdürülebilir koda yol açar. Her işlemin mantığı izole edilmiş ve anlaşılması ve test edilmesi daha kolaydır.
+* **Farklı Veri Erişim Gereksinimleri:** Uygulama, veri yazma ve okuma işlemleri için farklı gereksinimlere sahipse eğer CQRS pattern bu konuda esnek yaklaşım sergilenmesini sağlayabilir. Özellikle yoğun sorgulama gereksiniminin söz konusu olduğu çalışmalarda sorguların ve komutların ayrılması elzemdir.
 
-* **Gelişmiş Eşzamanlılık:** Okuma ve yazma işlemlerinin ayrılması, eşzamanlılık kontrolünü basitleştirir. Okuma işlemlerinin veritabanı kilitleri için yazma işlemleriyle rekabet etmesi gerekmez.
+* **Performans Optimizasyonu:** Uygulamanın performansını artırmak veya veri erişimini optimize etmek istediğinizde CQRS pattern'ini uygulayabilirsiniz. Hem bu pattern sayesinde farklı optimizasyon stratejilerini uygulama şansı ve esnekliği de söz konusu olmaktadır. Misal olarak, sorgulama tarafında caching veya NoSQL gibi hızlı çözümler fark yaratacaktır.
 
-* **Daha İyi Test Edilebilirlik:** Ayrım, komutların ve sorguların birim test edilmesini kolaylaştırır. Her bileşen bağımsız olarak test edilebilir.
-
-* **Esneklik:** Her işlem için en iyi veritabanı teknolojisinin seçilmesine olanak tanır (örneğin, komutlar için ilişkisel veritabanı, sorgular için NoSQL).
-
-
-**3. Uygun Senaryolar**
-
-* **Yüksek Trafikli Uygulamalar:** CQRS, yazma işlemlerine kıyasla önemli miktarda okuma işlemi olan uygulamalarda mükemmel performans gösterir.
-
-* **Karmaşık İş Mantığı:** Ayrım, karmaşık iş kurallarının ele alınmasını basitleştirir.
-
-* **Farklı Veri Erişim Gereksinimleri:** Okuma ve yazma işlemlerinin farklı veri modelleri veya erişim kalıpları gerektirdiği durumlarda.
-
-* **Performans Optimizasyonu:** CQRS, hem okuma hem de yazma işlemleri için özel optimizasyon stratejilerinin uygulanmasına olanak tanır.
-
-* **Gerçek Zamanlı Uygulamalar:** Ayrım, gerçek zamanlı okuma istekleri için veri erişimini optimize ederek yanıt vermeyi iyileştirir.
+* **Gerçek Zamanlı Uygulamalar:** Etkileşimli ve gerçek zamanlı uygulamalarda kullanıcıların hızlı yanıt alması asli unsurdur. CQRS deseni, veri okuma işlemlerini optimize ederek kullanıcı deneyimini iyileştirebilir.
 
 
 **4. Uygulama Yaklaşımları**
@@ -129,7 +133,7 @@ await mediator.Send(new UrunOlusturKomutu { Adi = "Yeni Ürün", Fiyat = 25.99 }
 Aşağıdaki dizin yapısı, CQRS bileşenlerini mantıklı bir şekilde düzenler:
 
 ```
-CQRSProjesi/
+CQRS/
 ├── Komutlar/
 │   ├── UrunOlusturKomutu.cs
 │   ├── UrunGuncelleKomutu.cs
