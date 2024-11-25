@@ -46,127 +46,279 @@ CQRS deseni, yeni gereksinimlerin eklenmesini veya mevcut gereksinimlerin deği�
 
 * **Gerçek Zamanlı Uygulamalar:** Etkileşimli ve gerçek zamanlı uygulamalarda kullanıcıların hızlı yanıt alması asli unsurdur. CQRS deseni, veri okuma işlemlerini optimize ederek kullanıcı deneyimini iyileştirebilir.
 
+## ✨ CQRS Nasıl Uygulanır
 
-**4. Uygulama Yaklaşımları**
+CQRS pattern'ı biri manuel bir diğeri de MediatR kütüphanesiyle olmak üzere iki türlü uygulanabilmektedir.
 
-**a) Manuel Uygulama**
+Hangi yöntemle uygularsak uygulayalım temelde CQRS davranışının kavramlarına hakim olmamız gerekmektedir. Bu kavramlar, Commands, Queries ve Handlers'dır.
 
-Bu yaklaşım, komutlar, sorgular ve işleyiciler için sınıfları manuel olarak oluşturmayı içerir. İnce taneli kontrol sağlar, ancak daha ayrıntılı olabilir.
+* **Commands**: Uygulamada yapılacak tüm command'leri temsil edecek olan sınıflardır. İçerisinde komutla ilgili verileri barındırır.
 
-* **Komut Örneği:**
+* **Queries**: Uygulamada yapılacak tüm query'leri temsil edecek olan sınıflardır. İçerisinde sorgulama neticesinde gelen verilerin alanlarını barındırır.
 
+* **Handlers**: Command ve Query'lerin işlenmesini gerçekleştirecek olan operasyonel sınıflardır. Gelen bir Command yahut Query isteğinin karşılığında yapılacak iş/operasyon bu sınıfta gerçekleştirilir.
+
+## 📂 Proje Yapısı
+
+CQRS'nin uygulanması için önerilen klasör yapısı şu şekildedir:
+
+```
+📂 CQRS
+├── 📂 Commands
+│   ├── 📂 Requests
+│   ├── 📂 Responses
+├── 📂 Handlers
+│   ├── 📂 CommandHandlers
+│   ├── 📂 QueryHandlers
+├── 📂 Queries
+│   ├── 📂 Requests
+│   └── 📂 Responses
+```
+
+## 🚀 Adım Adım Uygulama (Manuel)
+
+**1. Command ve Query Sınıfları Tanımlama**
+
+*Command Örneği*
 ```csharp
-public class UrunOlusturKomutu
+public class CreateProductCommandRequest
 {
-    public string Adi { get; set; }
-    public decimal Fiyat { get; set; }
+    public string Name { get; set; }
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+}
+
+public class CreateProductCommandResponse
+{
+    public bool IsSuccess { get; set; }
+    public Guid ProductId { get; set; }
 }
 ```
 
-* **Komut İşleyicisi Örneği:**
-
+*Query Örneği*
 ```csharp
-public class UrunOlusturKomutIsleyicisi : ICommandHandler<UrunOlusturKomutu>
+public class GetByIdProductQueryRequest
 {
-    private readonly UrunContext _context; // Veritabanı bağlamı
+    public string Id { get; set; }
+}
 
-    public UrunOlusturKomutIsleyicisi(UrunContext context)
-    {
-        _context = context;
-    }
+public class GetByIdProductQueryResponse
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedDate { get; set; }
+}
+```
 
-    public async Task Handle(UrunOlusturKomutu request, CancellationToken cancellationToken)
+**2. Handler'ları Uygulama**
+
+*Command Örneği*
+```csharp
+public class CreateProductCommandHandler(ProductDbContext context)
+{
+    public async Task<CreateProductCommandResponse> CreateProductAsync(CreateProductCommandRequest request)
     {
-        var urun = new Urun { Adi = request.Adi, Fiyat = request.Fiyat };
-        _context.Urunler.Add(urun);
-        await _context.SaveChangesAsync(cancellationToken);
+        var result = await context.Products.AddAsync(new()
+        {
+            Name = request.Name,
+            Price = request.Price,
+            Quantity = request.Quantity,
+            CreatedDate = DateTime.UtcNow,
+        });
+
+        await context.SaveChangesAsync();
+            
+        return new()
+        {
+            IsSuccess = true,
+            ProductId = result.Entity.Id
+        };
     }
 }
 ```
 
-* **Sorgu Örneği:**
-
+*Query Örneği*
 ```csharp
-public class UrunuIdyeGoreAlSorgusu : IRequest<Urun>
+public class GetByIdProductQueryHandler(ProductDbContext context)
 {
-    public int Id { get; set; }
-}
-```
-
-* **Sorgu İşleyicisi Örneği:**
-
-```csharp
-public class UrunuIdyeGoreAlSorguIsleyicisi : IRequestHandler<UrunuIdyeGoreAlSorgusu, Urun>
-{
-    private readonly UrunContext _context; // Veritabanı bağlamı
-
-    public UrunuIdyeGoreAlSorguIsleyicisi(UrunContext context)
+    public async Task<GetByIdProductQueryResponse> GetByIdProductAsync(GetByIdProductQueryRequest request)
     {
-        _context = context;
-    }
+        var product = await context.Products.FindAsync(Guid.Parse(request.Id));
 
-    public async Task<Urun> Handle(UrunuIdyeGoreAlSorgusu request, CancellationToken cancellationToken)
-    {
-        return await _context.Urunler.FindAsync(request.Id, cancellationToken);
+        if (product == null)
+            throw new KeyNotFoundException("Product not found.");
+
+        return new GetByIdProductQueryResponse
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Price = product.Price,
+            Quantity = product.Quantity,
+            CreatedDate = product.CreatedDate,
+        };
     }
 }
 ```
 
-**b) MediatR Uygulaması**
+**3. Servislerin Entegrasyonu**
 
-MediatR, hafif bir aracı desen sağlayarak CQRS uygulamasını basitleştirir. Komutların ve sorguların ilgili işleyicilerine yönlendirilmesini işler.
-
+`Program.cs` dosyasına şu kod eklenir:
 
 ```csharp
-//Install-Package MediatR
-
-//MediatR'ı bağımlılık enjeksiyon kabınızda kaydedin
-services.AddMediatR(AppDomain.CurrentDomain.GetAssemblies());
-
-//Kullanım Örneği
-var sonuc = await mediator.Send(new UrunuIdyeGoreAlSorgusu { Id = 1 });
-await mediator.Send(new UrunOlusturKomutu { Adi = "Yeni Ürün", Fiyat = 25.99 });
+builder.Services.AddTransient<CreateProductCommandHandler>()
+                .AddTransient<DeleteProductCommandHandler>()
+                .AddTransient<GetAllProductQueryHandler>()
+                .AddTransient<GetByIdProductQueryHandler>();
 ```
 
-**5. Dizin Yapısı (Örnek)**
+**4. Controller Sınıfı**
 
-Aşağıdaki dizin yapısı, CQRS bileşenlerini mantıklı bir şekilde düzenler:
+```csharp
+public class ProductsController(CreateProductCommandHandler createProductCommandHandler,
+    DeleteProductCommandHandler deleteProductCommandHandler,
+    GetAllProductQueryHandler getAllProductQueryHandler,
+    GetByIdProductQueryHandler getByIdProductQueryHandler) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> GetAllProduct([FromQuery] GetAllProductQueryRequest request)
+        => Ok(await getAllProductQueryHandler.GetAllProductAsync(request));
 
-```
-CQRS/
-├── Komutlar/
-│   ├── UrunOlusturKomutu.cs
-│   ├── UrunGuncelleKomutu.cs
-│   └── ...
-├── KomutIsleyiciler/
-│   ├──  📂 UrunOlusturKomutIsleyicisi.cs
-│   ├── UrunGuncelleKomutIsleyicisi.cs
-│   └── ...
-├── Sorgular/
-│   ├── UrunuIdyeGoreAlSorgusu.cs
-│   ├── TumUrunleriAlSorgusu.cs
-│   └── ...
-├── SorguIsleyiciler/
-│   ├── UrunuIdyeGoreAlSorguIsleyicisi.cs
-│   ├── TumUrunleriAlSorguIsleyicisi.cs
-│   └── ...
-└── ... diğer proje klasörleri ...
+    [HttpGet("{Id}")]
+    public async Task<IActionResult> GetByIdProduct([FromRoute] GetByIdProductQueryRequest request)
+        => Ok(await getByIdProductQueryHandler.GetByIdProductAsync(request));
+
+    [HttpPut]
+    public async Task<IActionResult> CreateProduct([FromBody] CreateProductCommandRequest request)
+        => Ok(await createProductCommandHandler.CreateProductAsync(request));
+
+    [HttpDelete("{Id}")]
+    public async Task<IActionResult> DeleteProduct([FromRoute] DeleteProductCommandRequest request)
+        => Ok(await deleteProductCommandHandler.DeleteProductAsync(request));
+}
 
 ```
 
 
-**6. Olay Kaynakçılığı (İsteğe Bağlı)**
+## 🚀 Adım Adım Uygulama (MediatR)
 
-Olay Kaynakçılığı genellikle CQRS ile birlikte kullanılır. Uygulamanın mevcut durumunu depolamak yerine, meydana gelen olayların bir dizisini depolar. Bu yaklaşım, denetlenebilirlik, daha basit eşzamanlılık yönetimi ve geçmiş durumları yeniden oluşturma yeteneği gibi avantajlar sağlar.
+**1. Command ve Query Sınıfları Tanımlama**
+
+`MediatR` kütüphanesini uygulamaya eklemeyi unutmayın.
+
+*Command Örneği*
+```csharp
+public class CreateProductCommandRequest : IRequest<CreateProductCommandResponse>
+{
+    public string Name { get; set; }
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+}
+
+public class CreateProductCommandResponse
+{
+    public bool IsSuccess { get; set; }
+    public Guid ProductId { get; set; }
+}
+```
+
+*Query Örneği*
+```csharp
+public class GetByIdProductQueryRequest : IRequest<GetByIdProductQueryResponse>
+{
+    public string Id { get; set; }
+}
+
+public class GetByIdProductQueryResponse
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedDate { get; set; }
+}
+```
+
+**2. Handler'ları Uygulama**
+
+*Command Örneği*
+```csharp
+public class CreateProductCommandHandler(ProductDbContext context) : IRequestHandler<CreateProductCommandRequest, CreateProductCommandResponse>
+{
+    public async Task<CreateProductCommandResponse> Handle(CreateProductCommandRequest request, CancellationToken cancellationToken)
+    {
+        var result = await context.Products.AddAsync(new()
+        {
+            Name = request.Name,
+            Price = request.Price,
+            Quantity = request.Quantity,
+            CreatedDate = DateTime.UtcNow,
+        });
+
+        await context.SaveChangesAsync();
+            
+        return new()
+        {
+            IsSuccess = true,
+            ProductId = result.Entity.Id
+        };
+    }
+}
+```
+
+*Query Örneği*
+```csharp
+public class GetByIdProductQueryHandler(ProductDbContext context) : IRequestHandler<GetByIdProductQueryRequest, GetByIdProductQueryResponse>
+{
+    public async Task<GetByIdProductQueryResponse> Handle(GetByIdProductQueryRequest request, CancellationToken cancellationToken)
+    {
+        var product = await context.Products.FindAsync(Guid.Parse(request.Id));
+
+        if (product == null)
+            throw new KeyNotFoundException("Product not found.");
+
+        return new GetByIdProductQueryResponse
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Price = product.Price,
+            Quantity = product.Quantity,
+            CreatedDate = product.CreatedDate,
+        };
+    }
+}
+```
+
+**3. MediatR Entegrasyonu**
+
+`Program.cs` dosyasına şu kod eklenir:
+
+```csharp
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(ProductDbContext).Assembly));
+```
+
+**4. Controller Sınıfı**
+
+```csharp
+public class ProductsController(IMediator mediator) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> GetAllProduct([FromQuery] GetAllProductQueryRequest request)
+        => Ok(await mediator.Send(request));
+
+    [HttpGet("{Id}")]
+    public async Task<IActionResult> GetByIdProduct([FromRoute] GetByIdProductQueryRequest request)
+        => Ok(await mediator.Send(request));
+
+    [HttpPut]
+    public async Task<IActionResult> CreateProduct([FromBody] CreateProductCommandRequest request)
+        => Ok(await mediator.Send(request));
+
+    [HttpDelete("{Id}")]
+    public async Task<IActionResult> DeleteProduct([FromRoute] DeleteProductCommandRequest request)
+        => Ok(await mediator.Send(request));
+}
+```
 
 
-**7. Diğer Hususlar:**
-
-* **Hata Yönetimi:** Hem komutlar hem de sorgular için sağlam hata yönetimi mekanizmaları uygulayın.
-* **Veri Doğrulama:** Komutları işlemeden önce giriş verilerini doğrulayın.
-* **İşlem Yönetimi:** Gerektiğinde işlemler kullanarak veri tutarlılığını sağlayın.
-* **Günlük Kaydı:** Hata ayıklama ve denetim amacıyla komut ve sorgu yürütmelerini günlüğe kaydedin.
-* **Güvenlik:** Verileri korumak için uygun güvenlik önlemleri uygulayın.
-
-
-Bu kapsamlı kılavuz, CQRS desenini uygulamaya yönelik sağlam bir temel sağlar. Manuel veya MediatR uygulaması arasında seçim yapmak, proje gereksinimlerine ve ekip tercihlerine bağlıdır. Anahtar, temel prensipleri anlamak ve uygulamanızın mimarisini ve performansını iyileştirmek için bunları etkili bir şekilde uygulamaktadır.
