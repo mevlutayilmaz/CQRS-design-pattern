@@ -114,6 +114,8 @@ public class GetByIdProductQueryResponse
 
 **2. Handler'ları Uygulama**
 
+Bu tasarımda tüm operasyonel sınıflar handler sınıfları olacağından dolayı bizim servislerimiz bunlar olacaktır. Haliyle bu sınıflar üzerinden işlemler yürütülecektir.
+
 *Command Örneği*
 ```csharp
 public class CreateProductCommandHandler(ProductDbContext context)
@@ -203,9 +205,15 @@ public class ProductsController(CreateProductCommandHandler createProductCommand
 
 ## 🚀 Adım Adım Uygulama (MediatR)
 
-**1. Command ve Query Sınıfları Tanımlama**
+MediatR kütüphanesi, tek bir mediator nesnesi içerisinde çeşitli nesneler arasındaki karmaşık ilişkiler ağını yönetmemize olanak tanıyan bir tasarım deseni olan Mediator Pattern davranışını uygulayan bir kütüphanedir.
 
-`MediatR` kütüphanesini uygulamaya eklemeyi unutmayın.
+Kullanabilmek için `MediatR` kütüphanesini uygulamaya eklemeyi unutmayın.
+
+Bu kütüphane ile yapılacak CQRS çalışmalanında kullanılacak sınıflar aşağıdaki aktörler tarafından işaretlenmelidir.
+* **IRequest&lt;out TResponse&gt;:** Request Sınıfları
+* **IRequestHandler<in TRequest, TResponse>:** Handler Sınıfları
+
+**1. Command ve Query Sınıfları Tanımlama**
 
 *Command Örneği*
 ```csharp
